@@ -1,0 +1,24 @@
+---
+dependency:
+  name: galaxy
+driver:
+  name: docker
+platforms:
+  - name: instance
+    image: games-on-whales/gow-molecule-test
+    pre_build_image: true
+    # Doesn't work for some reason
+    # dockerfile: test.Dockerfile
+    # Manually do: docker build -t games-on-whales/gow-molecule-test --file molecule/default/test.Dockerfile molecule/default
+
+    # TODO: docker-in-docker?
+
+    # We don't need any additional privileges for our task
+    #    cgroupns_mode: host
+    #    privileged: true
+    #    volumes:
+    #      - /sys/fs/cgroup:/sys/fs/cgroup:rw
+provisioner:
+  name: ansible
+verifier:
+  name: ansible

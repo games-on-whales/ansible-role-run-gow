@@ -1,0 +1,21 @@
+---
+# run-gow parameters
+run_gow:
+  streamer: sunshine
+  platform: headless
+  # gpu: (nvidia, intel)
+  applications:
+   - retroarch
+
+update_containers: true
+first_time_setup: true
+
+# installation parameters
+gow_base_path: "{{ '/home/' + ansible_user + '/gow' if ansible_user is defined else '/etc/gow' }}"
+gow_paths:
+  base: "{{ gow_base_path }}"
+  state: "{{ gow_base_path }}/local_state"
+  git: "{{ gow_base_path }}/git"
+  user_env: "{{ gow_base_path }}/git/env/user.env"
+
+uinput_location: "/dev/uinput"

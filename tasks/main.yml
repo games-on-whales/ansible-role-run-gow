@@ -1,0 +1,60 @@
+---
+
+- name: First time setup
+  block:
+    - name: "create folder {{ gow_paths.base }}"
+      ansible.builtin.file:
+       path: "{{ gow_paths.base }}"
+       state: directory
+
+    - name: "create folder {{ gow_paths.state }}"
+      ansible.builtin.file:
+       path: "{{ gow_paths.state }}"
+       state: directory
+
+    - name: git checkout games-on-whales/gow
+      ansible.builtin.git:
+        repo: https://github.com/games-on-whales/gow.git
+        dest: "{{ gow_paths.git }}"
+        update: true
+        accept_hostkey: true
+   when: first_time_setup is defined and first_time_setup
+
+- name: Custom GOW configuration
+ # https://games-on-whales.github.io/gow/configuration.html
+  block:
+  - name: "create file {{ gow_paths.user_env }}"
+    ansible.builtin.file:
+     path: "{{ gow_paths.user_env }}"
+     state: touch
+
+  - name: "Update local_state path"
+    lineinfile:
+      path: "{{ gow_paths.user_env }}"
+      regexp: '^local_state=(.*)$'
+      line: 'local_state={{ gow_paths.state }}'
+      backrefs: yes
+
+  # TODO: timezone, uid, gid, display, ...
+
+- name: Run GOW
+  block:
+    - name: Create run-gow command
+      ansible.builtin.set_fact:
+        run_gow_options: "--streamer {{ run_gow.streamer }} --platform {{ run_gow.platform }} {{ ['--app '] | product(run_gow.applications) | map('join') | join(' ') }} {{ '--gpu' + run_gow.gpu if run_gow.gpu is defined else '' }} "
+      when: run_gow_options is not defined
+
+    - name: Update GOW containers
+      ansible.builtin.shell: ./run-gow {{ run_gow_options }} pull
+      args:
+        chdir: "{{ gow_paths.git }}"
+      when: update_containers
+
+    - name: Start GOW (via run-gow) in background
+      ansible.builtin.shell: ./run-gow {{ run_gow_options }} up -d
+      args:
+        chdir: "{{ gow_paths.git }}"
+
+- name: End info
+  debug:
+    msg: "You can access Sunshine's web UI at 'https://{{ ansible_host }}:47990' and login using admin/admin (dont forget to change this) to approve of pins"
