@@ -13,6 +13,32 @@ Role Variables
 
 A description of the settable variables for this role should go here, including any variables that are in defaults/main.yml, vars/main.yml, and any variables that can/should be set via parameters to the role. Any variables that are read from other roles and/or the global scope (ie. hostvars, group vars, etc.) should be mentioned here as well.
 
+### `gow_data_volume` — keep persistent state off the OS root
+
+GoW's persistent state (`gow_paths.state`, i.e. `local_state`) holds app data and
+**game libraries** — tens to hundreds of GB. Left on the OS root filesystem, a
+game download silently fills root and destabilizes the whole host. Set
+`gow_data_volume` to mount a dedicated block device at the state path (persisted
+in `/etc/fstab`) before any state is written:
+
+```yaml
+gow_data_volume:
+  enabled: true
+  device: /dev/storage/gow-data   # operator-provided block device (LV/partition/disk)
+  mountpoint: ""                  # empty = gow_paths.state
+  fstype: ext4
+  format: true                    # mkfs — only acts on a BLANK device, never wipes data
+  mount_opts: "defaults,nofail"
+```
+
+The block device is operator-provided. For an LVM thin pool, e.g.:
+
+```sh
+lvcreate -V 1024G --thinpool <thinpool> -n gow-data <vg>
+```
+
+Disabled by default (`enabled: false`), so existing deployments are unchanged.
+
 Dependencies
 ------------
 

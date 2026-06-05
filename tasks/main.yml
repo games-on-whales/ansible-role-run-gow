@@ -1,5 +1,59 @@
 ---
 
+# Put GoW's persistent state on a dedicated volume (off the OS root) before any
+# state directory is created or written. Disabled by default; see
+# gow_data_volume in defaults/main.yml. Uses builtin modules only.
+- name: Provision GoW data volume
+  when: gow_data_volume.enabled | bool
+  become: true
+  vars:
+    gow_data_mountpoint: "{{ gow_data_volume.mountpoint or gow_paths.state }}"
+  block:
+    - name: "Validate gow_data_volume.device is set"
+      ansible.builtin.assert:
+        that:
+          - gow_data_volume.device | length > 0
+        fail_msg: "gow_data_volume.enabled is true but gow_data_volume.device is empty"
+
+    - name: "Ensure mountpoint {{ gow_data_mountpoint }} exists"
+      ansible.builtin.file:
+        path: "{{ gow_data_mountpoint }}"
+        state: directory
+
+    - name: "Probe existing filesystem on {{ gow_data_volume.device }}"
+      ansible.builtin.command: "blkid -s TYPE -o value {{ gow_data_volume.device }}"
+      register: gow_data_existing_fstype
+      changed_when: false
+      failed_when: false
+
+    - name: "Create {{ gow_data_volume.fstype }} filesystem on {{ gow_data_volume.device }}"
+      ansible.builtin.command: "mkfs -t {{ gow_data_volume.fstype }} {{ gow_data_volume.device }}"
+      # Only format a blank device, so re-running the role never wipes data.
+      when:
+        - gow_data_volume.format | bool
+        - (gow_data_existing_fstype.stdout | trim) | length == 0
+
+    - name: "Read UUID of {{ gow_data_volume.device }}"
+      ansible.builtin.command: "blkid -s UUID -o value {{ gow_data_volume.device }}"
+      register: gow_data_uuid
+      changed_when: false
+
+    - name: "Persist mount of {{ gow_data_mountpoint }} in /etc/fstab"
+      ansible.builtin.lineinfile:
+        path: /etc/fstab
+        regexp: '[[:space:]]{{ gow_data_mountpoint }}[[:space:]]'
+        line: "UUID={{ gow_data_uuid.stdout | trim }} {{ gow_data_mountpoint }} {{ gow_data_volume.fstype }} {{ gow_data_volume.mount_opts }} 0 2"
+
+    - name: "Check whether {{ gow_data_mountpoint }} is already mounted"
+      ansible.builtin.command: "mountpoint -q {{ gow_data_mountpoint }}"
+      register: gow_data_mounted
+      changed_when: false
+      failed_when: false
+
+    - name: "Mount {{ gow_data_mountpoint }}"
+      ansible.builtin.command: "mount {{ gow_data_mountpoint }}"
+      when: gow_data_mounted.rc != 0
+
 - name: First time setup
   block:
     - name: "create folder {{ gow_paths.base }}"
@@ -18,7 +72,7 @@
         dest: "{{ gow_paths.git }}"
         update: true
         accept_hostkey: true
-   when: first_time_setup is defined and first_time_setup
+  when: first_time_setup is defined and first_time_setup
 
 - name: Custom GOW configuration
  # https://games-on-whales.github.io/gow/configuration.html
