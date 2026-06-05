@@ -19,3 +19,22 @@ gow_paths:
   user_env: "{{ gow_base_path }}/git/env/user.env"
 
 uinput_location: "/dev/uinput"
+
+# Optional: keep GoW's persistent state (app data, game libraries — tens to
+# hundreds of GB) on a dedicated volume instead of the OS root filesystem.
+# Game libraries on a small root disk silently fill it and destabilize the host.
+# When enabled, the role formats (optional, only if the device is blank) and
+# mounts `device` at `mountpoint` (defaults to gow_paths.state) before any state
+# is written, and persists it in /etc/fstab.
+#
+# The block device is operator-provided; create it however suits the host, e.g.
+# an LVM thin volume:
+#   lvcreate -V 1024G --thinpool <pool> -n gow-data <vg>
+#   gow_data_volume: { enabled: true, device: /dev/<vg>/gow-data, format: true }
+gow_data_volume:
+  enabled: false
+  device: ""              # e.g. /dev/storage/gow-data (must already exist)
+  mountpoint: ""          # empty = gow_paths.state
+  fstype: ext4
+  format: false           # mkfs the device first — only acts on a BLANK device
+  mount_opts: "defaults,nofail"
